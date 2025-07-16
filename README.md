@@ -9,3 +9,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/3azmeo/linux-post-instal
 
 
 curl -fsSL "https://raw.githubusercontent.com/3azmeo/linux-post-install/main/post-install.sh" | bash
+
+
+
+
+curl -L -o setup.sh "https://raw.githubusercontent.com/3azmeo/linux-post-install/main/post-install.sh"
+chmod +x setup.sh
+./setup.sh
