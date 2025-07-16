@@ -2,23 +2,21 @@
 
 # ==============================================================================
 #  3azmeo Post-Install Script
-#  Version: 7.1 (Self-defending against incorrect execution)
+#  Version: 8.0 (Simplified & Stable - Zsh/P10k Removed)
 # ==============================================================================
 
 # --- Self-Defense Check ---
 # This script requires user interaction and MUST NOT be run via a pipe.
-# It checks if standard input is coming from a terminal.
 if ! [ -t 0 ]; then
     echo
     echo "[1;31mERROR: This script is interactive and cannot be run via a pipe (curl ... | bash).[0m"
     echo "[1;33mPlease download it first and then run it directly:[0m"
-    echo "[1;32m1. curl -L -o setup.sh \"https://raw.githubusercontent.com/3azmeo/linux-post-install/main/post-install.sh\"[0m"
+    echo "[1;32m1. curl -L -o setup.sh \"<URL_TO_YOUR_SCRIPT>\"[0m"
     echo "[1;32m2. chmod +x setup.sh[0m"
     echo "[1;32m3. ./setup.sh[0m"
     echo
     exit 1
 fi
-
 
 # --- Global Variables & Helper Functions ---
 C_RESET='\033[0m'; C_RED='\033[0;31m'; C_GREEN='\033[0;32m'; C_BLUE='\033[0;34m'; C_YELLOW='\033[0;33m'
@@ -38,7 +36,7 @@ ask_yes_no() { while true; do read -p "$(echo -e "${C_YELLOW}[?] $1 [Y/n]: ${C_R
 print_header() {
     clear
     echo -e "${C_BLUE}=============================================${C_RESET}"
-    echo -e "${C_BLUE}     3azmeo Post-Install Script v7.1       ${C_RESET}"
+    echo -e "${C_BLUE}     3azmeo Post-Install Script v8.0       ${C_RESET}"
     echo -e "${C_BLUE}=============================================${C_RESET}"
     echo
 }
@@ -49,18 +47,18 @@ detect_package_manager() {
 }
 install_packages() {
     log_info "Checking and installing packages..."
-    PACKAGES_TO_INSTALL=(); BASE_PACKAGES=("curl" "nano" "sudo" "git" "wget" "fontconfig")
+    PACKAGES_TO_INSTALL=(); BASE_PACKAGES=("curl" "nano" "sudo" "git" "wget")
     for pkg in "${BASE_PACKAGES[@]}"; do if ! command -v "$pkg" &> /dev/null; then PACKAGES_TO_INSTALL+=("$pkg"); fi; done
     if ask_yes_no "Install 'htop'?"; then PACKAGES_TO_INSTALL+=("htop"); fi
     if ask_yes_no "Install 'ufw'?"; then PACKAGES_TO_INSTALL+=("ufw"); fi
-    if ask_yes_no "Install 'nfs-common'?"; then if [ "$PKG_MANAGER" == "apt" ]; then PACKAGES_TO_INSTALL+=("nfs-common"); else PACKAGES_TO_INSTALL+=("nfs-utils"); fi; fi
+    if ask_yes_no "Install 'nfs-common' (for NFS shares)?"; then if [ "$PKG_MANAGER" == "apt" ]; then PACKAGES_TO_INSTALL+=("nfs-common"); else PACKAGES_TO_INSTALL+=("nfs-utils"); fi; fi
     if ask_yes_no "Install 'unzip'?"; then PACKAGES_TO_INSTALL+=("unzip"); fi
     if [ ${#PACKAGES_TO_INSTALL[@]} -gt 0 ]; then
         log_action "Installing: ${PACKAGES_TO_INSTALL[*]}"; if [ -n "$UPDATE_CMD" ]; then $UPDATE_CMD; fi; $INSTALL_CMD "${PACKAGES_TO_INSTALL[@]}"; log_success "Packages installed."
     else log_info "No new packages to install."; fi
 }
 
-# --- Security, Users, SSH, Docker, NFS (unchanged)---
+# --- Security, Users, SSH, Docker, NFS ---
 setup_security_tool() {
     log_info "Setting up Intrusion Protection..."; echo -e "Choose: 1) CrowdSec (Modern) 2) Fail2Ban 3) None"; read -p "$(echo -e "${C_YELLOW}[?] Choice [1-3]: ${C_RESET}")" choice
     case $choice in
@@ -89,51 +87,12 @@ harden_ssh_server() {
 install_docker() {
     if ! command -v docker &> /dev/null; then
         if ask_yes_no "Install Docker?"; then
-            log_info "Installing Docker..."
-            # This is the correct way to run the docker install script non-interactively
-            curl -fsSL https://get.docker.com -o get-docker.sh
-            sh get-docker.sh
-            rm get-docker.sh
-            usermod -aG docker "$TARGET_USER"
-            log_success "Docker installed."
+            log_info "Installing Docker..."; curl -fsSL https://get.docker.com -o get-docker.sh; sh get-docker.sh; rm get-docker.sh
+            usermod -aG docker "$TARGET_USER"; log_success "Docker installed."
         fi
     fi
 }
 configure_nfs_mounts() { if ask_yes_no "Setup NFS shares?"; then if ! command -v mount.nfs &> /dev/null; then log_error "'mount.nfs' not found."; return 1; fi; while ask_yes_no "Add a new NFS share?"; do read -p "Remote path: " remote_share; read -p "Local dir name: " local_dir_name; if [ -n "$remote_share" ] && [ -n "$local_dir_name" ]; then local_mount_path="/home/${TARGET_USER}/${local_dir_name}"; fstab_entry="${remote_share} ${local_mount_path} nfs defaults,nofail,_netdev,bg 0 0"; mkdir -p "$local_mount_path"; chown "${TARGET_USER}:${TARGET_USER}" "$local_mount_path"; echo "$fstab_entry" >> /etc/fstab; fi; done; mount -a; fi; }
-
-# --- Oh My Zsh + Powerlevel10k (Auto Rainbow Theme) ---
-setup_zsh_p10k() {
-    if ask_yes_no "Install Oh-My-Zsh + Powerlevel10k theme for '$TARGET_USER'? ✨"; then
-        log_info "Installing Zsh and Powerlevel10k..."
-        if ! command -v zsh &> /dev/null; then log_action "Installing zsh..."; $INSTALL_CMD zsh; fi
-        
-        log_action "Installing MesloLGS NF fonts on the server..."; FONT_DIR="/usr/local/share/fonts/meslolgs_nf"; mkdir -p "$FONT_DIR"
-        curl -L https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf -o "$FONT_DIR/MesloLGS NF Regular.ttf"
-        curl -L https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold.ttf -o "$FONT_DIR/MesloLGS NF Bold.ttf"
-        curl -L https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Italic.ttf -o "$FONT_DIR/MesloLGS NF Italic.ttf"
-        curl -L https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold%20Italic.ttf -o "$FONT_DIR/MesloLGS NF Bold Italic.ttf"
-        log_info "Updating server font cache..."; fc-cache -f -v
-        
-        log_action "Changing default shell for '$TARGET_USER' to Zsh."; chsh -s "$(which zsh)" "$TARGET_USER"
-        
-        log_action "Installing Oh My Zsh for '$TARGET_USER'..."; sudo -u "$TARGET_USER" sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh) -s -- --unattended"
-        log_action "Installing Powerlevel10k theme..."; p10k_path="/home/$TARGET_USER/.oh-my-zsh/custom/themes/powerlevel10k"; sudo -u "$TARGET_USER" git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$p10k_path"
-        sudo -u "$TARGET_USER" sed -i 's/^ZSH_THEME=".*"/ZSH_THEME="powerlevel10k\/powerlevel10k"/' "/home/$TARGET_USER/.zshrc"
-
-        log_action "Automatically configuring Powerlevel10k with 'Rainbow' style..."
-        P10K_CONFIG_PATH="/home/$TARGET_USER/.p10k.zsh"
-        sudo -u "$TARGET_USER" curl -L -o "$P10K_CONFIG_PATH" "https://github.com/romkatv/powerlevel10k/raw/master/.p10k.zsh"
-        sudo -u "$TARGET_USER" sed -i "s/typeset -g POWERLEVEL9K_STYLE='.*'/typeset -g POWERLEVEL9K_STYLE='RAINBOW'/" "$P10K_CONFIG_PATH"
-        echo '[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh' | sudo -u "$TARGET_USER" tee -a "/home/$TARGET_USER/.zshrc" > /dev/null
-        log_success "Powerlevel10k 'Rainbow' theme has been set automatically."
-        
-        echo; log_action "!!! 🚨 FINAL INSTRUCTIONS - VERY IMPORTANT 🚨 !!!"
-        echo -e "${C_YELLOW}1. You MUST install the 'MesloLGS NF' font on your OWN PC to see icons correctly."
-        echo -e "${C_YELLOW}   Download: ${C_GREEN}https://github.com/romkatv/powerlevel10k#meslo-nerd-font-patched-for-powerlevel10k"
-        echo -e "${C_YELLOW}2. After installing the font, set it in your terminal application (Windows Terminal, iTerm2, etc)."
-        echo
-    fi
-}
 
 # --- System Finalization ---
 update_and_clean_system() { if ask_yes_no "Update system now?"; then log_info "Updating system..."; case $PKG_MANAGER in "apt") apt update && apt upgrade -y && apt dist-upgrade -y && apt autoremove -y && apt clean -y;; "dnf") dnf upgrade -y && dnf autoremove -y;; "pacman") pacman -Syu --noconfirm;; esac; log_success "Update complete."; fi; }
@@ -141,9 +100,17 @@ final_reboot() { log_info "All tasks complete."; if ask_yes_no "Reboot now?"; th
 
 # --- Main Execution ---
 main() {
-    print_header; detect_package_manager; install_packages; setup_security_tool; manage_users
-    setup_ssh_keys; harden_ssh_server; install_docker; configure_nfs_mounts; setup_zsh_p10k
-    update_and_clean_system; final_reboot
+    print_header
+    detect_package_manager
+    install_packages
+    setup_security_tool
+    manage_users
+    setup_ssh_keys
+    harden_ssh_server
+    install_docker
+    configure_nfs_mounts
+    update_and_clean_system
+    final_reboot
     echo -e "\n${C_GREEN}================== Script Finished ==================${C_RESET}"
 }
 
