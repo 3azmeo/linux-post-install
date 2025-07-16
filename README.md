@@ -68,3 +68,12 @@ run command
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/3azmeo/linux-post-install/main/post-install.sh)"
 or
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/3azmeo/linux-post-install/refs/heads/main/post-install.sh)"
+
+
+# docker install
+
+chmod +x install_docker.sh && ./install_docker.sh
+
+# ps
+Username (3azmeo): In the "Add User to Docker Group" step, 3azmeo is used as the username as you provided. If your desired username is different, you must manually edit the script to change 3azmeo to the correct username
+
