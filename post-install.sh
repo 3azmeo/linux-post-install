@@ -2,8 +2,23 @@
 
 # ==============================================================================
 #  3azmeo Post-Install Script
-#  Version: 7.0 (Safe One-Liner + Auto Rainbow Theme)
+#  Version: 7.1 (Self-defending against incorrect execution)
 # ==============================================================================
+
+# --- Self-Defense Check ---
+# This script requires user interaction and MUST NOT be run via a pipe.
+# It checks if standard input is coming from a terminal.
+if ! [ -t 0 ]; then
+    echo
+    echo "[1;31mERROR: This script is interactive and cannot be run via a pipe (curl ... | bash).[0m"
+    echo "[1;33mPlease download it first and then run it directly:[0m"
+    echo "[1;32m1. curl -L -o setup.sh \"https://raw.githubusercontent.com/3azmeo/linux-post-install/main/post-install.sh\"[0m"
+    echo "[1;32m2. chmod +x setup.sh[0m"
+    echo "[1;32m3. ./setup.sh[0m"
+    echo
+    exit 1
+fi
+
 
 # --- Global Variables & Helper Functions ---
 C_RESET='\033[0m'; C_RED='\033[0;31m'; C_GREEN='\033[0;32m'; C_BLUE='\033[0;34m'; C_YELLOW='\033[0;33m'
@@ -23,7 +38,7 @@ ask_yes_no() { while true; do read -p "$(echo -e "${C_YELLOW}[?] $1 [Y/n]: ${C_R
 print_header() {
     clear
     echo -e "${C_BLUE}=============================================${C_RESET}"
-    echo -e "${C_BLUE}     3azmeo Post-Install Script v7.0       ${C_RESET}"
+    echo -e "${C_BLUE}     3azmeo Post-Install Script v7.1       ${C_RESET}"
     echo -e "${C_BLUE}=============================================${C_RESET}"
     echo
 }
@@ -32,7 +47,6 @@ print_header() {
 detect_package_manager() {
     if command -v apt &> /dev/null; then PKG_MANAGER="apt"; INSTALL_CMD="apt install -y"; UPDATE_CMD="apt update"; elif command -v dnf &> /dev/null; then PKG_MANAGER="dnf"; INSTALL_CMD="dnf install -y"; UPDATE_CMD=""; elif command -v pacman &> /dev/null; then PKG_MANAGER="pacman"; INSTALL_CMD="pacman -S --noconfirm"; UPDATE_CMD="pacman -Sy"; else log_error "Could not detect a known package manager. Exiting."; exit 1; fi
 }
-
 install_packages() {
     log_info "Checking and installing packages..."
     PACKAGES_TO_INSTALL=(); BASE_PACKAGES=("curl" "nano" "sudo" "git" "wget" "fontconfig")
@@ -72,10 +86,22 @@ EOF
 harden_ssh_server() {
     log_info "Hardening SSH server..."; sed -i -E 's/^#?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config; sed -i -E 's/^#?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config; systemctl restart sshd || systemctl restart ssh
 }
-install_docker() { if ! command -v docker &> /dev/null; then if ask_yes_no "Install Docker?"; then log_info "Installing Docker..."; curl -fsSL https://get.docker.com | sh; usermod -aG docker "$TARGET_USER"; fi; fi; }
+install_docker() {
+    if ! command -v docker &> /dev/null; then
+        if ask_yes_no "Install Docker?"; then
+            log_info "Installing Docker..."
+            # This is the correct way to run the docker install script non-interactively
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sh get-docker.sh
+            rm get-docker.sh
+            usermod -aG docker "$TARGET_USER"
+            log_success "Docker installed."
+        fi
+    fi
+}
 configure_nfs_mounts() { if ask_yes_no "Setup NFS shares?"; then if ! command -v mount.nfs &> /dev/null; then log_error "'mount.nfs' not found."; return 1; fi; while ask_yes_no "Add a new NFS share?"; do read -p "Remote path: " remote_share; read -p "Local dir name: " local_dir_name; if [ -n "$remote_share" ] && [ -n "$local_dir_name" ]; then local_mount_path="/home/${TARGET_USER}/${local_dir_name}"; fstab_entry="${remote_share} ${local_mount_path} nfs defaults,nofail,_netdev,bg 0 0"; mkdir -p "$local_mount_path"; chown "${TARGET_USER}:${TARGET_USER}" "$local_mount_path"; echo "$fstab_entry" >> /etc/fstab; fi; done; mount -a; fi; }
 
-# --- UPDATED: Oh My Zsh + Powerlevel10k (Auto Rainbow Theme) ---
+# --- Oh My Zsh + Powerlevel10k (Auto Rainbow Theme) ---
 setup_zsh_p10k() {
     if ask_yes_no "Install Oh-My-Zsh + Powerlevel10k theme for '$TARGET_USER'? ✨"; then
         log_info "Installing Zsh and Powerlevel10k..."
@@ -96,11 +122,8 @@ setup_zsh_p10k() {
 
         log_action "Automatically configuring Powerlevel10k with 'Rainbow' style..."
         P10K_CONFIG_PATH="/home/$TARGET_USER/.p10k.zsh"
-        # Download the default config file from the official repo
         sudo -u "$TARGET_USER" curl -L -o "$P10K_CONFIG_PATH" "https://github.com/romkatv/powerlevel10k/raw/master/.p10k.zsh"
-        # Automatically set the RAINBOW style
         sudo -u "$TARGET_USER" sed -i "s/typeset -g POWERLEVEL9K_STYLE='.*'/typeset -g POWERLEVEL9K_STYLE='RAINBOW'/" "$P10K_CONFIG_PATH"
-        # Ensure the .zshrc sources the new .p10k.zsh file
         echo '[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh' | sudo -u "$TARGET_USER" tee -a "/home/$TARGET_USER/.zshrc" > /dev/null
         log_success "Powerlevel10k 'Rainbow' theme has been set automatically."
         
