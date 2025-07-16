@@ -13,6 +13,4 @@ curl -fsSL "https://raw.githubusercontent.com/3azmeo/linux-post-install/main/pos
 
 
 
-curl -L -o setup.sh "https://raw.githubusercontent.com/3azmeo/linux-post-install/main/post-install.sh"
-chmod +x setup.sh
-./setup.sh
+curl -L -o setup.sh "https://raw.githubusercontent.com/3azmeo/linux-post-install/main/post-install.sh" && chmod +x setup.sh && ./setup.sh
