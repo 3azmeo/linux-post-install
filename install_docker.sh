@@ -252,6 +252,34 @@ fi
 
 echo ""
 
+# --- 12. Configure Docker Log Rotation (Prevent Disk Full) ---
+log_step "Configuring Docker Log Rotation to prevent disk usage issues..."
+
+LOG_CONFIG_FILE="/etc/docker/daemon.json"
+
+# Create or overwrite the daemon.json with log rotation settings
+# max-size: 10m (Maximum size of one log file)
+# max-file: 3 (Keep only 3 rotated files)
+sudo bash -c "cat > $LOG_CONFIG_FILE" <<EOF
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOF
+
+if [ $? -eq 0 ]; then
+    log_success "Log rotation configured successfully in $LOG_CONFIG_FILE."
+    log_message "Restarting Docker service to apply changes..."
+    sudo systemctl restart docker
+else
+    log_error "Failed to configure Docker log rotation."
+fi
+
+echo ""
+
 
 # --- Script Final Message ---
 echo -e "\n${GREEN}--- Docker Installation Script Completed Successfully! ---${NC}\n"
